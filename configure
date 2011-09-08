@@ -1,0 +1,290 @@
+#!/bin/sh
+#
+# configure: Automatically configure install locations for x11-ssh-askpass
+#
+# by Jim Knoble <jmknoble@pobox.com>
+# Copyright (C) 2001 Jim Knoble
+# 
+# Disclaimer:
+# 
+# This software is provided "as is", without warranty of any kind,
+# express or implied, including but not limited to the warranties of
+# merchantability, fitness for a particular purpose and
+# noninfringement. In no event shall the author(s) be liable for any
+# claim, damages or other liability, whether in an action of
+# contract, tort or otherwise, arising from, out of or in connection
+# with the software or the use or other dealings in the software.
+# 
+# Permission to use, copy, modify, distribute, and sell this software
+# and its documentation for any purpose is hereby granted without
+# fee, provided that the above copyright notice appear in all copies
+# and that both that copyright notice and this permission notice
+# appear in supporting documentation.
+
+PrintHelp() {
+  cat <<EOF
+
+Usage: $0 [options]
+
+Options:
+  --prefix=PREFIX           install architecture-independent files in PREFIX
+                            [${default_prefix}]
+  --exec-prefix=EPREFIX     install architecture-dependent files in EPREFIX
+                            [same as prefix]
+  --libexecdir=DIR          program executables in DIR [EPREFIX/libexec]
+  --mandir=DIR              man documentation in DIR [PREFIX/man]
+  
+  --bindir=DIR              ignored
+  --sbindir=DIR             ignored
+  --datadir=DIR             ignored
+  --sysconfdir=DIR          ignored
+  --sharedstatedir=DIR      ignored
+  --localstatedir=DIR       ignored
+  --libdir=DIR              ignored
+  --includedir=DIR          ignored
+  --infodir=DIR             ignored
+
+  --with-app-defaults=FILE          Use application defaults from FILE
+                                    [${default_app_defaults}]
+  --with-app-defaults-dir=DIR       Install application defaults file into DIR
+                                    [wherever imake prefers]
+  --disable-installing-app-defaults Do not install the application defaults
+                                    file (overrides --with-app-defaults-dir)
+				    [enabled]
+
+EOF
+  exit 1
+}
+
+GetOptionArg() {
+  opt="$1"
+  if [ -z "${opt}" ]; then
+    return
+  fi
+  varname=`echo "${opt}" |sed -e 's/^--//' -e 's/=.*$//' -e 'y/-/_/'`
+  case "${opt}" in
+    *=*)
+      arg=`echo "${opt}" |sed -e 's/^[^=]*=//'`
+      eval "${varname}=\"${arg}\""
+    ;;
+  esac
+}
+
+GetWithOption() {
+  opt="$1"
+  if [ -z "${opt}" ]; then
+    return
+  fi
+  varname=`echo "${opt}" |sed -e 's/^--with-//' -e 's/=.*$//' -e 'y/-/_/'`
+  case "${opt}" in
+    --with-*=*)
+      arg=`echo "${opt}" |sed -e 's/^[^=]*=//'`
+      eval "${varname}=\"${arg}\""
+    ;;
+  esac
+}
+
+GetEnableOption() {
+  opt="$1"
+  if [ -z "${opt}" ]; then
+    return
+  fi
+  varname=`echo "${opt}" |sed -e 's/^--dis/en/' -e 's/^--//' -e 's/=.*$//' \
+    -e 'y/-/_/'`
+  case "${opt}" in
+    --enable-*=*)
+      arg=`echo "${opt}" |sed -e 's/^[^=]*=//'`
+    ;;
+    --enable-*)
+      arg=yes
+    ;;
+    --disable-*)
+      arg=no
+    ;;
+    *)
+      return
+    ;;
+  esac
+  case "${arg}" in
+    1|[yY]|[tT]|[oO][nN]|[yY][eE][sS]|[tT][rR][uU][eE]|[eE][nN][aA][bB][lL][eE][dD])
+      eval "${varname}=yes"
+    ;;
+    0|[nN]|[fF]|[oO][fF][fF]|[nN][oO]|[fF][aA][lL][sS][eE]|[dD][iI][sS][aA][bB][lL][eE][dD])
+      eval "${varname}=no"
+    ;;
+    *)
+      echo "$0: error: I don't understand '${arg}' (from '${opt}')."
+      exit 1
+    ;;
+  esac
+}
+
+UseDefaults () {
+  unset CC
+  unset CFLAGS
+  unset LDFLAGS
+
+  prefix=''
+  exec_prefix=''
+  libexecdir=''
+  mandir=''
+  app_defaults=''
+  app_defaults_dir=''
+  enable_installing_app_defaults=''
+}
+
+IMAKEFILE_SRC="Imakefile.in"
+IMAKEFILE_DST="Imakefile"
+
+default_default_app_defaults_dir='$(XAPPLOADDIR)'
+
+default_prefix='/usr/local'
+
+if [ -f ../configure ]; then
+  eval `cat ../configure |awk '/^[ 	]*ac_default_prefix=/ { print $0 }'`
+fi
+if [ -n "${ac_default_prefix}" ]; then
+  default_prefix="${ac_default_prefix}"
+fi
+
+default_exec_prefix='${prefix}'
+default_libexecdir='${exec_prefix}/libexec'
+default_mandir='${prefix}/man'
+default_app_defaults='SshAskpass-default.ad'
+default_app_defaults_dir='${default_default_app_defaults_dir}'
+default_enable_installing_app_defaults='yes'
+
+prefix=''
+exec_prefix=''
+libexecdir=''
+mandir=''
+app_defaults=''
+app_defaults_dir=''
+enable_installing_app_defaults=''
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help|-help|-\?)
+      PrintHelp
+    ;;
+    -d|--default|--defaults|--use-defaults)
+      UseDefaults
+      break
+    ;;
+    --prefix=*|--exec-prefix=*|--libexecdir=*|--mandir=*)
+      GetOptionArg "$1"
+      shift
+    ;;
+    --with-app-defaults=*|--with-app-defaults-dir=*)
+      GetWithOption "$1"
+      shift
+    ;;
+    --enable-installing-app-defaults|--enable-installing-app-defaults=*|--disable-installing-app-defaults)
+      GetEnableOption "$1"
+      shift
+    ;;
+    -*)
+      shift
+    ;;
+    *)
+      break
+    ;;
+  esac
+done
+
+for i in \
+  prefix \
+  exec_prefix \
+  libexecdir \
+  mandir \
+  app_defaults \
+  app_defaults_dir \
+  enable_installing_app_defaults \
+; do
+  if eval [ -z \"\${"${i}"}\" ]; then
+    eval ${i}=\"\`eval echo \${default_"${i}"}\`\"
+  fi
+done
+
+if [ ! -f "${IMAKEFILE_SRC}" ]; then
+  echo "$0: error: I can't seem to find ${IMAKEFILE_SRC}."
+  echo "$0: Are you sure you're running me from the x11-ssh-askpass source directory?"
+  exit 1
+fi
+
+cat "${IMAKEFILE_SRC}" |sed \
+  -e 's#^\([ 	]*BINDIR[ 	]*=\).*$#\1 '"${libexecdir}"'#' \
+  -e 's#^\([ 	]*MANPATH[ 	]*=\).*$#\1 '"${mandir}"'#' \
+  -e 's#^\([ 	]*APPDEFDIR[ 	]*=\).*$#\1 '"${app_defaults_dir}"'#' \
+  -e 's#^\([ 	]*APP_DEFAULTS[ 	]*=\).*#\1 '"${app_defaults}"'#' \
+  >"${IMAKEFILE_DST}.tmp" \
+&& mv -f "${IMAKEFILE_DST}.tmp" "${IMAKEFILE_DST}"
+
+case "${enable_installing_app_defaults}" in
+  yes)
+    cat "${IMAKEFILE_DST}" |sed \
+      -e 's#^[ ]*\(XCOMM[ 	]\+\)\?\(install::[ 	]\+install-app-defaults.*\)$#\2#' \
+      >"${IMAKEFILE_DST}.tmp" \
+    && mv -f "${IMAKEFILE_DST}.tmp" "${IMAKEFILE_DST}"
+  ;;
+  no)
+    cat "${IMAKEFILE_DST}" |sed \
+      -e 's#^[ ]*\(XCOMM[ 	]\+\)\?\(install::[ 	]\+install-app-defaults.*\)$#XCOMM \2#' \
+      >"${IMAKEFILE_DST}.tmp" \
+    && mv -f "${IMAKEFILE_DST}.tmp" "${IMAKEFILE_DST}"
+  ;;
+esac
+
+if [ -n "${CC}" ]; then
+  cat "${IMAKEFILE_DST}" |sed \
+    -e 's#^[ 	]*XCOMM[ 	]\+\(CC[ 	]*=\).*$#\1 '"${CC}"'#' \
+    >"${IMAKEFILE_DST}.tmp" \
+  && mv -f "${IMAKEFILE_DST}.tmp" "${IMAKEFILE_DST}"
+else
+  CC='default'
+fi
+
+if [ -n "${CFLAGS}" ]; then
+  cat "${IMAKEFILE_DST}" |sed \
+    -e 's#^[ 	]*XCOMM[ 	]\+\(CDEBUGFLAGS[ 	]*=\).*$#\1 '"${CFLAGS}"'#' \
+    >"${IMAKEFILE_DST}.tmp" \
+  && mv -f "${IMAKEFILE_DST}.tmp" "${IMAKEFILE_DST}"
+else
+  CFLAGS='default'
+fi
+
+if [ -n "${LDFLAGS}" ]; then
+  cat "${IMAKEFILE_DST}" |sed \
+    -e 's#^[ 	]*XCOMM[ 	]\+\(LOCAL_LDFLAGS[ 	]*=\).*$#\1 '"${LDFLAGS}"'#' \
+    >"${IMAKEFILE_DST}.tmp" \
+  && mv -f "${IMAKEFILE_DST}.tmp" "${IMAKEFILE_DST}"
+else
+  LDFLAGS='default'
+fi
+
+if [ "${app_defaults_dir}" = "${default_default_app_defaults_dir}" ]; then
+  app_defaults_dir='default'
+fi
+
+cat <<EOF
+
+x11-ssh-askpass has been configured with the following options:
+
+                  Askpass directory: ${libexecdir}
+                        Manual page: ${mandir}/man1
+          Application defaults file: ${app_defaults}
+     Application defaults directory: ${app_defaults_dir}
+  Install application defaults file: ${enable_installing_app_defaults}
+
+        Compiler: ${CC}
+  Compiler flags: ${CFLAGS}
+    Linker flags: ${LDFLAGS}
+
+You may now create the Makefile and build x11-ssh-askpass using the
+following commands:
+
+        xmkmf
+	make includes
+	make
+
+EOF
